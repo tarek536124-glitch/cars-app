@@ -4,295 +4,456 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>برنامج الإدارة المتطور</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS فقط -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Bootstrap Icons للأيقونات -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
         body { font-family: 'Cairo', sans-serif; }
+        .hidden-view { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-100">
-    <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    <div id="app" class="max-w-md mx-auto min-h-screen bg-gray-50 relative pb-10">
         
-        const Icon = ({ name, size = 24, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) {
-                    lucide.createIcons();
-                }
-            }, [name]);
-            return <i data-lucide={name} style={{width: size, height: size}} className={className}></i>;
-        };
-
-        const TollApp = () => {
-            const [currentView, setCurrentView] = useState('home');
-            const [carAmount, setCarAmount] = useState('');
-            const [carResult, setCarResult] = useState(null);
-            const [ticketAmount, setTicketAmount] = useState('');
-            const [ticketResult, setTicketResult] = useState(null);
-            const [counterType, setCounterType] = useState(null);
-            const [counterInputs, setCounterInputs] = useState({});
-
-            // --- منطق توزيع السيارات الجديد (الأولوية للجرار والفردي) ---
-            const calculateCars = () => {
-                let total = parseInt(carAmount);
-                if (isNaN(total) || total <= 0) return;
-
-                // أسعار الفئات
-                const prices = { gr: 35, fr: 30, bs: 25, sh: 20, rn: 15, mk: 15, al: 10 };
-                
-                // الأوزان النسبية (بناءً على طلبك: الجرار والفردي أعلى شيء، الأوتوبيس والميكروباص أقل شيء)
-                // الأرقام هنا تمثل "أجزاء من المبلغ"
-                const weights = {
-                    gr: 0.35,  // الجرار (أعلى نسبة)
-                    fr: 0.22,  // الفردي
-                    sh: 0.13,  // شيفر
-                    al: 0.15,  // ملاكي
-                    rn: 0.08,  // ربع نقل
-                    mk: 0.05,  // ميكروباص (قليل)
-                    bs: 0.02   // أتوبيس (أقل شيء)
-                };
-
-                let counts = {};
-                let currentSum = 0;
-
-                // توزيع أولي بناءً على الأوزان
-                Object.keys(weights).forEach(key => {
-                    let allocatedMoney = total * weights[key];
-                    counts[key] = Math.floor(allocatedMoney / prices[key]);
-                    currentSum += counts[key] * prices[key];
-                });
-
-                // معالجة الفروقات لضمان تطابق المبلغ الإجمالي
-                let diff = total - currentSum;
-                
-                // إضافة الفرق لأكثر فئة متاحة (الجرار أولاً ثم الباقي) لتغطية المبلغ تماماً
-                const keysPriority = ['gr', 'fr', 'al', 'sh', 'rn', 'mk', 'bs'];
-                for (let key of keysPriority) {
-                    while (diff >= prices[key]) {
-                        counts[key]++;
-                        diff -= prices[key];
-                    }
-                }
-
-                setCarResult({ 
-                    al: counts.al, mk: counts.mk, rn: counts.rn, 
-                    sh: counts.sh, fr: counts.fr, gr: counts.gr, bs: counts.bs,
-                    totalCount: Object.values(counts).reduce((a, b) => a + b, 0),
-                    totalValue: total, 
-                    isValid: (total - diff) === total 
-                });
-            };
-
-            const calculateTickets = () => {
-                let aa = parseInt(ticketAmount);
-                if (isNaN(aa)) return;
-                let a10a = 0, a15a = 0, a25a = 0, a30a = 0, a35a = 0;
-                let remaining = aa;
-                
-                // توزيع التذاكر بنسب متوازنة مع إعطاء ثقل للفئات الكبيرة
-                a35a = Math.floor((aa * 0.4) / 35);
-                remaining -= a35a * 35;
-                a30a = Math.floor((aa * 0.2) / 30);
-                remaining -= a30a * 30;
-                a25a = Math.floor((aa * 0.15) / 25);
-                remaining -= a25a * 25;
-                a15a = Math.floor((aa * 0.1) / 15);
-                remaining -= a15a * 15;
-                a10a = Math.floor(remaining / 10);
-                remaining %= 10;
-
-                setTicketResult({ a10a, a15a, a25a, a30a, a35a, totalValue: aa - remaining });
-            };
-
-            const handleCounterChange = (key, value) => setCounterInputs(p => ({...p, [key]: value}));
-
-            const calculateCounterTotal = (type) => {
-                let total = 0, count = 0;
-                if (type === 'money') {
-                    const bills = [200, 100, 50, 20, 10, 5, 1];
-                    bills.forEach(b => total += (parseInt(counterInputs[b] || 0) * b));
-                } else if (type === 'cars') {
-                    const prices = {mlaki:10, micro:15, rob:15, shever:20, bus:25, fardi:30, grar:35};
-                    Object.keys(prices).forEach(k => {
-                        let val = parseInt(counterInputs[k] || 0);
-                        total += val * prices[k];
-                        count += val;
-                    });
-                } else if (type === 'tickets') {
-                    const tPrices = {t10:10, t15:15, t25:25, t30:30, t35:35};
-                    Object.keys(tPrices).forEach(k => {
-                        let val = parseInt(counterInputs[k] || 0);
-                        total += val * tPrices[k];
-                        count += val;
-                    });
-                }
-                return { total, count };
-            };
-
-            const Header = ({ title, iconName }) => (
-                <div className="bg-gradient-to-l from-blue-700 to-blue-500 text-white p-5 pt-8 pb-6 flex items-center shadow-lg rounded-b-[2rem] mb-4">
-                    {currentView !== 'home' && (
-                        <button onClick={() => counterType ? setCounterType(null) : setCurrentView('home')} className="ml-4 hover:bg-white/20 p-2 rounded-full transition-colors">
-                            <Icon name="arrow-right" />
-                        </button>
-                    )}
-                    <div className="flex-1 text-center flex items-center justify-center gap-2">
-                        <Icon name={iconName} />
-                        <h1 className="text-xl font-bold">{title}</h1>
-                    </div>
-                    <div className="w-10"></div>
+        <!-- 1. الشاشة الرئيسية -->
+        <div id="view-home">
+            <div class="bg-gradient-to-br from-blue-800 to-blue-600 text-white p-8 pt-12 pb-16 rounded-b-[3rem] shadow-lg mb-6 text-center">
+                <div class="w-20 h-20 bg-white/20 rounded-full mx-auto mb-4 flex items-center justify-center border-2 border-white/30">
+                    <i class="bi bi-wallet2 text-3xl"></i>
                 </div>
-            );
-
-            const Card = ({ label, value, subLabel, highlight = false }) => (
-                <div className={`p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 transition-all ${highlight ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
-                    <div>
-                        <div className={`font-bold text-lg ${highlight ? 'text-blue-800' : 'text-gray-800'}`}>{label}</div>
-                        {subLabel && <div className="text-xs text-gray-500">{subLabel}</div>}
+                <h2 class="text-3xl font-black mb-1">مرحباً كابتن مصطفى</h2>
+                <p class="text-blue-100 text-sm font-medium">نظام التوزيع الذكي - الإصدار المستقر</p>
+            </div>
+            
+            <div class="px-6 -mt-10 space-y-4 pb-10">
+                <button onclick="switchView('cars')" class="w-full bg-white p-5 rounded-2xl shadow-sm flex items-center justify-between active:scale-95 transition-all border border-gray-100">
+                    <div class="flex items-center">
+                        <div class="w-14 h-14 rounded-2xl bg-blue-500 ml-5 text-white flex items-center justify-center"><i class="bi bi-car-front-fill text-xl"></i></div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-gray-800">توزيع السيارات</div>
+                            <div class="text-xs text-gray-400">الجرار والفردي بأعلى نسبة</div>
+                        </div>
                     </div>
-                    <div className={`text-2xl font-black ${highlight ? 'text-blue-700' : 'text-blue-600'}`}>{value}</div>
+                    <i class="bi bi-chevron-left text-gray-300"></i>
+                </button>
+
+                <button onclick="switchView('tickets')" class="w-full bg-white p-5 rounded-2xl shadow-sm flex items-center justify-between active:scale-95 transition-all border border-gray-100">
+                    <div class="flex items-center">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-500 ml-5 text-white flex items-center justify-center"><i class="bi bi-ticket-perforated-fill text-xl"></i></div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-gray-800">برنامج التذاكر</div>
+                            <div class="text-xs text-gray-400">حساب فئات التذاكر المتاحة</div>
+                        </div>
+                    </div>
+                    <i class="bi bi-chevron-left text-gray-300"></i>
+                </button>
+
+                <button onclick="switchView('counters')" class="w-full bg-white p-5 rounded-2xl shadow-sm flex items-center justify-between active:scale-95 transition-all border border-gray-100">
+                    <div class="flex items-center">
+                        <div class="w-14 h-14 rounded-2xl bg-purple-500 ml-5 text-white flex items-center justify-center"><i class="bi bi-calculator-fill text-xl"></i></div>
+                        <div class="text-right">
+                            <div class="text-lg font-bold text-gray-800">برنامج العدادات</div>
+                            <div class="text-xs text-gray-400">جرد نقدية وسيارات وتذاكر</div>
+                        </div>
+                    </div>
+                    <i class="bi bi-chevron-left text-gray-300"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- الهيدر المشترك للشاشات الداخلية -->
+        <div id="common-header" class="hidden-view bg-gradient-to-l from-blue-700 to-blue-500 text-white p-5 pt-8 pb-6 flex items-center shadow-lg rounded-b-[2rem] mb-4">
+            <button onclick="goBack()" class="ml-4 hover:bg-white/20 p-2 rounded-full transition-colors flex items-center justify-center">
+                <i class="bi bi-arrow-right text-xl"></i>
+            </button>
+            <div class="flex-1 text-center flex items-center justify-center gap-2">
+                <i id="header-icon" class="bi text-xl"></i>
+                <h1 id="header-title" class="text-xl font-bold"></h1>
+            </div>
+            <div class="w-10"></div>
+        </div>
+
+        <!-- 2. شاشة توزيع السيارات -->
+        <div id="view-cars" class="hidden-view p-4">
+            <div id="cars-input-card" class="bg-white p-8 rounded-3xl shadow-sm text-center">
+                <label class="block text-gray-600 font-bold mb-4">أدخل المبلغ الإجمالي</label>
+                <input type="number" id="carAmount" class="w-full p-4 border-b-2 text-4xl font-black text-center text-blue-600 focus:outline-none mb-6" placeholder="0">
+                <button onclick="calculateCars()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-xl shadow-md active:scale-95 transition-transform">توزيع المبلغ</button>
+            </div>
+            
+            <div id="cars-result-card" class="hidden-view space-y-1">
+                <div class="bg-blue-600 p-6 rounded-3xl text-center text-white mb-4 shadow-md">
+                    <div class="text-sm opacity-80">إجمالي المبلغ الموزع</div>
+                    <div class="text-4xl font-black" id="res-car-total">0 ج.م</div>
                 </div>
-            );
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-blue-50 border-blue-200">
+                    <div><div class="font-bold text-lg text-blue-800">جرار</div><div class="text-xs text-gray-500">35 ج</div></div>
+                    <div class="text-2xl font-black text-blue-700" id="res-gr">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-blue-50 border-blue-200">
+                    <div><div class="font-bold text-lg text-blue-800">فردي</div><div class="text-xs text-gray-500">30 ج</div></div>
+                    <div class="text-2xl font-black text-blue-700" id="res-fr">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">شيفر</div><div class="text-xs text-gray-500">20 ج</div></div>
+                    <div class="text-2xl font-black text-blue-600" id="res-sh">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">ملاكي</div><div class="text-xs text-gray-500">10 ج</div></div>
+                    <div class="text-2xl font-black text-blue-600" id="res-al">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">ربع نقل</div><div class="text-xs text-gray-500">15 ج</div></div>
+                    <div class="text-2xl font-black text-blue-600" id="res-rn">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">ميكروباص</div><div class="text-xs text-gray-500">15 ج</div></div>
+                    <div class="text-2xl font-black text-blue-600" id="res-mk">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">أوتوبيس</div><div class="text-xs text-gray-500">25 ج</div></div>
+                    <div class="text-2xl font-black text-blue-600" id="res-bs">0</div>
+                </div>
+                <button onclick="resetCars()" class="w-full mt-6 bg-white border-2 border-blue-600 text-blue-600 py-4 rounded-2xl font-bold text-lg">عملية جديدة</button>
+            </div>
+        </div>
 
-            if (currentView === 'home') {
-                return (
-                    <div className="max-w-md mx-auto min-h-screen bg-gray-50" dir="rtl">
-                        <div className="bg-gradient-to-br from-blue-800 to-blue-600 text-white p-8 pt-12 pb-16 rounded-b-[3rem] shadow-lg mb-6 text-center">
-                            <div className="w-20 h-20 bg-white/20 rounded-full mx-auto mb-4 flex items-center justify-center border-2 border-white/30">
-                                <Icon name="wallet" size={40} />
-                            </div>
-                            <h2 className="text-3xl font-black mb-1">مرحباً كابتن مصطفى</h2>
-                            <p className="text-blue-100 text-sm font-medium">نظام التوزيع الذكي - الإصدار المحدث</p>
-                        </div>
-                        <div className="px-6 -mt-10 space-y-4 pb-10">
-                            {[
-                                {id: 'cars', t: 'توزيع السيارات', s: 'الجرار والفردي بأعلى نسبة', c: 'bg-blue-500', i: 'car'},
-                                {id: 'tickets', t: 'برنامج التذاكر', s: 'حساب فئات التذاكر المتاحة', c: 'bg-emerald-500', i: 'ticket'},
-                                {id: 'counters', t: 'برنامج العدادات', s: 'جرد نقدية وسيارات وتذاكر', c: 'bg-purple-500', i: 'calculator'}
-                            ].map(item => (
-                                <button key={item.id} onClick={() => setCurrentView(item.id)} className="w-full bg-white p-5 rounded-2xl shadow-sm flex items-center justify-between group active:scale-95 transition-all border border-gray-100">
-                                    <div className="flex items-center">
-                                        <div className={`p-4 rounded-2xl ${item.c} ml-5 text-white`}><Icon name={item.i} size={28}/></div>
-                                        <div className="text-right">
-                                            <div className="text-lg font-bold text-gray-800">{item.t}</div>
-                                            <div className="text-xs text-gray-400">{item.s}</div>
-                                        </div>
-                                    </div>
-                                    <Icon name="chevron-left" className="text-gray-300" />
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                );
-            }
+        <!-- 3. شاشة برنامج التذاكر -->
+        <div id="view-tickets" class="hidden-view p-4">
+            <div id="tickets-input-card" class="bg-white p-8 rounded-3xl shadow-sm text-center">
+                <label class="block text-gray-600 font-bold mb-4">أدخل المبلغ لحساب التذاكر</label>
+                <input type="number" id="ticketAmount" class="w-full p-4 border-b-2 text-4xl font-black text-center text-emerald-600 focus:outline-none mb-6" placeholder="0">
+                <button onclick="calculateTickets()" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold text-xl shadow-md active:scale-95 transition-transform">احسب التذاكر</button>
+            </div>
+            
+            <div id="tickets-result-card" class="hidden-view space-y-2">
+                <div class="bg-emerald-600 p-6 rounded-3xl text-center text-white mb-4 shadow-md">
+                    <div class="text-sm opacity-80">المبلغ المحسوب</div>
+                    <div class="text-4xl font-black" id="res-ticket-total">0 ج.م</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">فئة 35</div></div>
+                    <div class="text-2xl font-black text-emerald-600" id="t-35">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">فئة 30</div></div>
+                    <div class="text-2xl font-black text-emerald-600" id="t-30">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">فئة 25</div></div>
+                    <div class="text-2xl font-black text-emerald-600" id="t-25">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">فئة 15</div></div>
+                    <div class="text-2xl font-black text-emerald-600" id="t-15">0</div>
+                </div>
+                <div class="p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-3 bg-white border-gray-100">
+                    <div><div class="font-bold text-lg text-gray-800">فئة 10</div></div>
+                    <div class="text-2xl font-black text-emerald-600" id="t-10">0</div>
+                </div>
+                <button onclick="resetTickets()" class="w-full mt-4 bg-gray-200 py-4 rounded-2xl font-bold text-gray-600">عملية جديدة</button>
+            </div>
+        </div>
 
-            if (currentView === 'cars') {
-                return (
-                    <div className="max-w-md mx-auto min-h-screen bg-gray-50 pb-10" dir="rtl">
-                        <Header title="توزيع السيارات" iconName="car" />
-                        <div className="p-4">
-                            {!carResult ? (
-                                <div className="bg-white p-8 rounded-3xl shadow-sm text-center">
-                                    <label className="block text-gray-600 font-bold mb-4">أدخل المبلغ الإجمالي</label>
-                                    <input type="number" value={carAmount} onChange={e => setCarAmount(e.target.value)} className="w-full p-4 border-b-2 text-4xl font-black text-center text-blue-600 focus:outline-none mb-6" placeholder="0"/>
-                                    <button onClick={calculateCars} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-xl">توزيع المبلغ</button>
-                                </div>
-                            ) : (
-                                <div className="space-y-1">
-                                    <div className="bg-blue-600 p-6 rounded-3xl text-center text-white mb-4 shadow-inner">
-                                        <div className="text-sm opacity-80">إجمالي المبلغ الموزع</div>
-                                        <div className="text-4xl font-black">{carResult.totalValue} ج.م</div>
-                                    </div>
-                                    <Card label="جرار" value={carResult.gr} subLabel="35 ج" highlight={true} />
-                                    <Card label="فردي" value={carResult.fr} subLabel="30 ج" highlight={true} />
-                                    <Card label="شيفر" value={carResult.sh} subLabel="20 ج" />
-                                    <Card label="ملاكي" value={carResult.al} subLabel="10 ج" />
-                                    <Card label="ربع نقل" value={carResult.rn} subLabel="15 ج" />
-                                    <Card label="ميكروباص" value={carResult.mk} subLabel="15 ج" />
-                                    <Card label="أوتوبيس" value={carResult.bs} subLabel="25 ج" />
-                                    <button onClick={() => {setCarResult(null); setCarAmount('');}} className="w-full mt-6 bg-white border-2 border-blue-600 text-blue-600 py-4 rounded-2xl font-bold text-lg">عملية جديدة</button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            }
+        <!-- 4. شاشة اختيار العدادات -->
+        <div id="view-counters" class="hidden-view p-6 space-y-4">
+            <button onclick="openCounterSubView('money')" class="w-full bg-white p-6 rounded-2xl shadow-sm flex items-center gap-4 border border-gray-100 text-right"><i class="bi bi-cash-coin text-yellow-500 text-2xl"></i> جرد النقدية (الفئات)</button>
+            <button onclick="openCounterSubView('cars')" class="w-full bg-white p-6 rounded-2xl shadow-sm flex items-center gap-4 border border-gray-100 text-right"><i class="bi bi-car-front-fill text-blue-500 text-2xl"></i> عداد السيارات</button>
+            <button onclick="openCounterSubView('tickets')" class="w-full bg-white p-6 rounded-2xl shadow-sm flex items-center gap-4 border border-gray-100 text-right"><i class="bi bi-ticket-perforated-fill text-emerald-500 text-2xl"></i> عداد التذاكر</button>
+        </div>
 
-            if (currentView === 'tickets') {
-                return (
-                    <div className="max-w-md mx-auto min-h-screen bg-gray-50 pb-10" dir="rtl">
-                        <Header title="برنامج التذاكر" iconName="ticket" />
-                        <div className="p-4">
-                            {!ticketResult ? (
-                                <div className="bg-white p-8 rounded-3xl shadow-sm text-center">
-                                    <input type="number" value={ticketAmount} onChange={e => setTicketAmount(e.target.value)} className="w-full p-4 border-b-2 text-4xl font-black text-center text-emerald-600 focus:outline-none mb-6" placeholder="0"/>
-                                    <button onClick={calculateTickets} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold text-xl">احسب</button>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="bg-emerald-600 p-6 rounded-3xl text-center text-white mb-4"><div className="text-4xl font-black">{ticketAmount} ج.م</div></div>
-                                    <Card label="فئة 35" value={ticketResult.a35a} />
-                                    <Card label="فئة 30" value={ticketResult.a30a} />
-                                    <Card label="فئة 25" value={ticketResult.a25a} />
-                                    <Card label="فئة 15" value={ticketResult.a15a} />
-                                    <Card label="فئة 10" value={ticketResult.a10a} />
-                                    <button onClick={() => {setTicketResult(null); setTicketAmount('');}} className="w-full mt-4 bg-gray-200 py-4 rounded-2xl font-bold text-gray-600">جديد</button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            }
+        <!-- 5. شاشة العدادات التفصيلية (جرد) -->
+        <div id="view-counter-detail" class="hidden-view">
+            <div class="sticky top-0 bg-white p-4 shadow-md mx-4 rounded-2xl mb-4 flex justify-between items-center z-10 border border-gray-100">
+                <div><div class="text-xs text-gray-500">الإجمالي</div><div id="counter-total-val" class="text-2xl font-black text-blue-600">0 ج.م</div></div>
+                <div id="counter-count-container" class="bg-blue-50 p-2 px-4 rounded-xl text-center font-bold text-blue-800 hidden">
+                    <span id="counter-total-count">0</span> <span class="text-xs font-normal text-gray-500">عدد</span>
+                </div>
+            </div>
+            
+            <!-- حقول جرد النقدية -->
+            <div id="group-money" class="p-4 space-y-3 hidden">
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">200 جنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="200" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">100 جنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="100" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">50 جنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="50" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">20 جنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="20" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">10 دنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="10" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">5 جنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="5" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">1 جنيه</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('money')" data-val="1" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+            </div>
 
-            if (currentView === 'counters') {
-                if (!counterType) {
-                    return (
-                        <div className="max-w-md mx-auto min-h-screen bg-gray-50" dir="rtl">
-                            <Header title="العدادات" iconName="calculator" />
-                            <div className="p-6 space-y-4">
-                                <button onClick={() => setCounterType('money')} className="w-full bg-white p-6 rounded-2xl shadow-sm flex items-center gap-4"><Icon name="banknote" className="text-yellow-500" /> جرد النقدية</button>
-                                <button onClick={() => setCounterType('cars')} className="w-full bg-white p-6 rounded-2xl shadow-sm flex items-center gap-4"><Icon name="car" className="text-blue-500" /> عداد السيارات</button>
-                                <button onClick={() => setCounterType('tickets')} className="w-full bg-white p-6 rounded-2xl shadow-sm flex items-center gap-4"><Icon name="ticket" className="text-emerald-500" /> عداد التذاكر</button>
-                            </div>
-                        </div>
-                    );
+            <!-- حقول عداد السيارات -->
+            <div id="group-cars" class="p-4 space-y-3 hidden">
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">جرار (35ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="35" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">فردي (30ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="30" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">أوتوبيس (25ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="25" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">شيفر (20ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="20" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">ربع نقل (15ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="15" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">ميكروباص (15ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="15" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-32">ملاكي (10ج)</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('cars')" data-val="10" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+            </div>
+
+            <!-- حقول عداد التذاكر -->
+            <div id="group-tickets" class="p-4 space-y-3 hidden">
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">فئة 35 ج</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('tickets')" data-val="35" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">فئة 30 ج</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('tickets')" data-val="30" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">فئة 25 ج</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('tickets')" data-val="25" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">فئة 15 ج</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('tickets')" data-val="15" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <label class="text-gray-700 font-bold w-24">فئة 10 ج</label>
+                    <input type="number" min="0" oninput="updateCounterTotal('tickets')" data-val="10" class="counter-input w-full p-2 text-xl font-bold outline-none text-left bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0">
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- نظام التحكم والتنقل وحساب البيانات بجافا سكريبت النقي السريع -->
+    <script>
+        let currentView = 'home';
+        let currentCounterType = null;
+
+        function switchView(viewName) {
+            currentView = viewName;
+            
+            // إخفاء كل الواجهات أولاً
+            document.getElementById('view-home').classList.add('hidden-view');
+            document.getElementById('view-cars').classList.add('hidden-view');
+            document.getElementById('view-tickets').classList.add('hidden-view');
+            document.getElementById('view-counters').classList.add('hidden-view');
+            document.getElementById('view-counter-detail').classList.add('hidden-view');
+            document.getElementById('common-header').classList.add('hidden-view');
+
+            if(viewName === 'home') {
+                document.getElementById('view-home').classList.remove('hidden-view');
+            } else {
+                // إظهار الهيدر وتغيير نصوصه وأيقوناته
+                document.getElementById('common-header').classList.remove('hidden-view');
+                const titleElem = document.getElementById('header-title');
+                const iconElem = document.getElementById('header-icon');
+                
+                iconElem.className = "bi text-xl"; // تنظيف
+                
+                if(viewName === 'cars') {
+                    titleElem.innerText = "توزيع السيارات";
+                    iconElem.classList.add('bi-car-front-fill');
+                    document.getElementById('view-cars').classList.remove('hidden-view');
+                } else if(viewName === 'tickets') {
+                    titleElem.innerText = "برنامج التذاكر";
+                    iconElem.classList.add('bi-ticket-perforated-fill');
+                    document.getElementById('view-tickets').classList.remove('hidden-view');
+                } else if(viewName === 'counters') {
+                    titleElem.innerText = "برنامج العدادات";
+                    iconElem.classList.add('bi-calculator-fill');
+                    document.getElementById('view-counters').classList.remove('hidden-view');
                 }
-                const { total, count } = calculateCounterTotal(counterType);
-                return (
-                    <div className="max-w-md mx-auto min-h-screen bg-gray-50 pb-20" dir="rtl">
-                        <Header title="العداد" iconName="calculator" />
-                        <div className="sticky top-0 bg-white p-4 shadow-md mx-4 rounded-2xl mb-4 flex justify-between items-center z-10">
-                            <div><div className="text-xs text-gray-500">الإجمالي</div><div className="text-2xl font-black text-blue-600">{total} ج.م</div></div>
-                            {counterType !== 'money' && <div className="bg-blue-50 p-2 rounded-xl text-center font-bold">{count} <span className="text-xs">عدد</span></div>}
-                        </div>
-                        <div className="p-4 space-y-3">
-                            {counterType === 'money' ? [200, 100, 50, 20, 10, 5, 1].map(b => (
-                                <div key={b} className="bg-white p-2 rounded-xl border"><label className="text-xs text-gray-400 px-2">{b} جنيه</label><input type="number" onChange={e => handleCounterChange(b, e.target.value)} className="w-full p-2 text-xl font-bold outline-none" placeholder="0"/></div>
-                            )) : counterType === 'cars' ? ['grar', 'fardi', 'bus', 'shever', 'rob', 'micro', 'mlaki'].map(c => (
-                                <div key={c} className="bg-white p-2 rounded-xl border">
-                                    <label className="text-xs text-gray-400 px-2 uppercase">
-                                        {c === 'grar' ? 'جرار (35ج)' : c === 'fardi' ? 'فردي (30ج)' : c === 'bus' ? 'أوتوبيس (25ج)' : c === 'shever' ? 'شيفر (20ج)' : c === 'rob' ? 'ربع نقل (15ج)' : c === 'micro' ? 'ميكروباص (15ج)' : 'ملاكي (10ج)'}
-                                    </label>
-                                    <input type="number" onChange={e => handleCounterChange(c, e.target.value)} className="w-full p-2 text-xl font-bold outline-none" placeholder="0"/>
-                                </div>
-                            )) : ['t35', 't30', 't25', 't15', 't10'].map(t => (
-                                <div key={t} className="bg-white p-2 rounded-xl border"><label className="text-xs text-gray-400 px-2 uppercase">{t}</label><input type="number" onChange={e => handleCounterChange(t, e.target.value)} className="w-full p-2 text-xl font-bold outline-none" placeholder="0"/></div>
-                            ))}
-                        </div>
-                    </div>
-                );
             }
-            return null;
-        };
+        }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<TollApp />);
+        function goBack() {
+            if (currentCounterType) {
+                // لو كنا في شاشة تفصيلية من العدادات نرجع لـ قائمة العدادات أولاً
+                currentCounterType = null;
+                document.getElementById('view-counter-detail').classList.add('hidden-view');
+                document.getElementById('header-title').innerText = "برنامج العدادات";
+                document.getElementById('view-counters').classList.remove('hidden-view');
+            } else {
+                switchView('home');
+            }
+        }
+
+        // --- منطق توزيع السيارات الذكي ---
+        function calculateCars() {
+            let total = parseInt(document.getElementById('carAmount').value);
+            if (isNaN(total) || total <= 0) return;
+
+            const prices = { gr: 35, fr: 30, bs: 25, sh: 20, rn: 15, mk: 15, al: 10 };
+            const weights = { gr: 0.35, fr: 0.22, sh: 0.13, al: 0.15, rn: 0.08, mk: 0.05, bs: 0.02 };
+
+            let counts = {};
+            let currentSum = 0;
+
+            Object.keys(weights).forEach(key => {
+                let allocatedMoney = total * weights[key];
+                counts[key] = Math.floor(allocatedMoney / prices[key]);
+                currentSum += counts[key] * prices[key];
+            });
+
+            let diff = total - currentSum;
+            const keysPriority = ['gr', 'fr', 'al', 'sh', 'rn', 'mk', 'bs'];
+            for (let key of keysPriority) {
+                while (diff >= prices[key]) {
+                    counts[key]++;
+                    diff -= prices[key];
+                }
+            }
+
+            // عرض النتائج في الـ DOM مباشرة
+            document.getElementById('res-car-total').innerText = total + " ج.م";
+            document.getElementById('res-gr').innerText = counts.gr;
+            document.getElementById('res-fr').innerText = counts.fr;
+            document.getElementById('res-sh').innerText = counts.sh;
+            document.getElementById('res-al').innerText = counts.al;
+            document.getElementById('res-rn').innerText = counts.rn;
+            document.getElementById('res-mk').innerText = counts.mk;
+            document.getElementById('res-bs').innerText = counts.bs;
+
+            document.getElementById('cars-input-card').classList.add('hidden-view');
+            document.getElementById('cars-result-card').classList.remove('hidden-view');
+        }
+
+        function resetCars() {
+            document.getElementById('carAmount').value = '';
+            document.getElementById('cars-result-card').classList.add('hidden-view');
+            document.getElementById('cars-input-card').classList.remove('hidden-view');
+        }
+
+        // --- منطق توزيع التذاكر المتوازن ---
+        function calculateTickets() {
+            let aa = parseInt(document.getElementById('ticketAmount').value);
+            if (isNaN(aa) || aa <= 0) return;
+            
+            let a10a = 0, a15a = 0, a25a = 0, a30a = 0, a35a = 0;
+            let remaining = aa;
+            
+            a35a = Math.floor((aa * 0.4) / 35);
+            remaining -= a35a * 35;
+            a30a = Math.floor((aa * 0.2) / 30);
+            remaining -= a30a * 30;
+            a25a = Math.floor((aa * 0.15) / 25);
+            remaining -= a25a * 25;
+            a15a = Math.floor((aa * 0.1) / 15);
+            remaining -= a15a * 15;
+            a10a = Math.floor(remaining / 10);
+            remaining %= 10;
+
+            document.getElementById('res-ticket-total').innerText = (aa - remaining) + " ج.م";
+            document.getElementById('t-35').innerText = a35a;
+            document.getElementById('t-30').innerText = a30a;
+            document.getElementById('t-25').innerText = a25a;
+            document.getElementById('t-15').innerText = a15a;
+            document.getElementById('t-10').innerText = a10a;
+
+            document.getElementById('tickets-input-card').classList.add('hidden-view');
+            document.getElementById('tickets-result-card').classList.remove('hidden-view');
+        }
+
+        function resetTickets() {
+            document.getElementById('ticketAmount').value = '';
+            document.getElementById('tickets-result-card').classList.add('hidden-view');
+            document.getElementById('tickets-input-card').classList.remove('hidden-view');
+        }
+
+        // --- منطق العدادات والجرد التفصيلي ---
+        function openCounterSubView(type) {
+            currentCounterType = type;
+            document.getElementById('view-counters').classList.add('hidden-view');
+            document.getElementById('view-counter-detail').classList.remove('hidden-view');
+
+            // إخفاء المجموعات الثلاثة وتصفير المدخلات السابقة
+            document.getElementById('group-money').classList.add('hidden-view');
+            document.getElementById('group-cars').classList.add('hidden-view');
+            document.getElementById('group-tickets').classList.add('hidden-view');
+            
+            // تفريغ الحقول القديمة عند فتح شاشة جديدة
+            const inputs = document.querySelectorAll('.counter-input');
+            inputs.forEach(i => i.value = '');
+            
+            document.getElementById('counter-total-val').innerText = "0 ج.م";
+            document.getElementById('counter-total-count').innerText = "0";
+
+            if (type === 'money') {
+                document.getElementById('header-title').innerText = "جرد النقدية";
+                document.getElementById('group-money').classList.remove('hidden-view');
+                document.getElementById('counter-count-container').classList.add('hidden');
+            } else if (type === 'cars') {
+                document.getElementById('header-title').innerText = "عداد السيارات";
+                document.getElementById('group-cars').classList.remove('hidden-view');
+                document.getElementById('counter-count-container').classList.remove('hidden');
+            } else if (type === 'tickets') {
+                document.getElementById('header-title').innerText = "عداد التذاكر";
+                document.getElementById('group-tickets').classList.remove('hidden-view');
+                document.getElementById('counter-count-container').classList.remove('hidden');
+            }
+        }
+
+        function updateCounterTotal(type) {
+            let totalMoney = 0;
+            let totalCount = 0;
+            
+            // جلب المدخلات النشطة فقط بناءً على المجموعة المفعلة
+            const targetGroup = document.getElementById('group-' + type);
+            const inputs = targetGroup.querySelectorAll('.counter-input');
+
+            inputs.forEach(input => {
+                let qty = parseInt(input.value) || 0;
+                let multiplier = parseInt(input.getAttribute('data-val')) || 0;
+                
+                totalMoney += (qty * multiplier);
+                totalCount += qty;
+            });
+
+            document.getElementById('counter-total-val').innerText = totalMoney + " ج.م";
+            document.getElementById('counter-total-count').innerText = totalCount;
+        }
     </script>
 </body>
 </html>
